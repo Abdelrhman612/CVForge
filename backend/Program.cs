@@ -1,5 +1,12 @@
+using System.Text;
 using backend.DataBase;
+using backend.InterFaces;
+using backend.Repo.Auth;
+using backend.Services;
+using backend.Utils;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +23,36 @@ builder.Services.AddDbContext<AppDbContext>(op =>
 
 
 });
+
+var JWT = builder.Configuration.GetSection("JWT").Get<Jwt>();
+if (JWT is not null)
+{
+    builder.Services.AddSingleton(JWT);
+    builder.Services.AddSingleton<IJwtService>(prov => new JwtService(JWT));
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = JWT?.Issuer,
+            ValidAudience = JWT?.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JWT?.Key ?? string.Empty)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+
+builder.Services.AddScoped<IAuthRepo, AuthRepo>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+
 
 var app = builder.Build();
 
